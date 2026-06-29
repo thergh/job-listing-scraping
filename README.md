@@ -12,20 +12,52 @@ python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-## Scrape offers
+Make the workflow script executable:
 
-Configure `jjit-scraper-config.json`.
+```bash
+chmod +x run.sh
+```
+
+## Full workflow
+
+Configure:
+
+* `jjit-scraper-config.json`
+* `analysis-config.json`
+* `reporter-config.json`
+
+Run the complete workflow:
+
+```bash
+./run.sh
+```
+
+The script runs:
+
+```bash
+python src/jjit_scraper.py
+python src/analyzer.py
+python src/reporter.py
+```
+
+## Scrape offers
 
 ```bash
 python src/jjit_scraper.py
 ```
 
-The scraper exports structured job postings to the configured output file in `data/`.
-
-Example:
+Configuration:
 
 ```text
-data/jjit-java-mid.json
+jjit-scraper-config.json
+```
+
+The scraper writes structured job postings to the configured file in `data/`.
+
+Default example:
+
+```text
+data/scraped.json
 ```
 
 Exported fields include:
@@ -37,23 +69,27 @@ Exported fields include:
 
 ## Analyse data
 
-Configure `analysis-config.json`.
-
 ```bash
 python src/analyzer.py
 ```
 
-The analyser reads scraped job postings and generates aggregated JSON data.
-
-Example output:
+Configuration:
 
 ```text
-res/jjit-java-mid-analysis.json
+analysis-config.json
 ```
 
-The analysis contains:
+The analyser reads scraped postings and generates aggregated JSON data.
 
-* total posting count
+Default example:
+
+```text
+res/analysis.json
+```
+
+The output contains:
+
+* posting count
 * salary coverage
 * salary statistics
 * job-title keyword frequencies
@@ -62,39 +98,33 @@ The analysis contains:
 
 ## Generate PDF report
 
-Configure `reporter-config.json`.
-
 ```bash
 python src/reporter.py
 ```
 
-Example output:
+Configuration:
 
 ```text
-res/jjit-java-mid-report.pdf
+reporter-config.json
 ```
 
-The PDF contains charts for:
+Default example:
 
-* posting count and salary coverage
-* most frequent skills and technologies
-* most frequent job-title keywords
-* salary ranges
+```text
+res/report.pdf
+```
+
+The PDF contains:
+
+* posting and salary coverage charts
+* skill and technology frequency charts
+* job-title keyword charts
+* salary range charts
 
 ## Custom config paths
-
-Each script accepts an optional config path:
 
 ```bash
 python src/jjit_scraper.py jjit-scraper-config.json
 python src/analyzer.py analysis-config.json
 python src/reporter.py reporter-config.json
-```
-
-## Full workflow
-
-```bash
-python src/jjit_scraper.py
-python src/analyzer.py
-python src/reporter.py
 ```
