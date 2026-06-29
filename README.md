@@ -1,4 +1,4 @@
-# Just Join IT job listing analysis
+# Job listings scraping
 
 Scrapes filtered Just Join IT offers, analyses the exported JSON data, and generates a PDF report.
 
