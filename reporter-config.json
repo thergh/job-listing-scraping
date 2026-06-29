@@ -1,0 +1,11 @@
+{
+  "input": "res/analysis.json",
+  "output": "res/java-mid-report.pdf",
+  "title": "Job Report",
+  "top_skills": 25,
+  "top_title_keywords": 20,
+  "salary_currency": "PLN",
+  "salary_unit": "month",
+  "exclude_skills": [],
+  "exclude_title_keywords": []
+}

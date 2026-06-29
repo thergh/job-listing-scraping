@@ -1,0 +1,8 @@
+{
+  "url": "https://justjoin.it/job-offers/all-locations/java?experience-levels=mid",
+  "output": "data/scraped.json",
+  "format": "json",
+  "delay_seconds": 0.1,
+  "max_idle_scrolls": 10,
+  "headful": false
+}
