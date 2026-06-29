@@ -26,18 +26,37 @@ Configure:
 * `analysis-config.json`
 * `reporter-config.json`
 
-Run the complete workflow:
+Run the complete workflow with the default scraper config:
 
 ```bash
 ./run.sh
 ```
 
+Run with a custom scraper config:
+
+```bash
+./run.sh -c path/to/custom-config.json
+```
+
+Run with the default scraper config but override the URL:
+
+```bash
+./run.sh -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
+```
+
+Use flags together in any order:
+
+```bash
+./run.sh -c path/to/custom-config.json -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
+./run.sh -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid' -c path/to/custom-config.json
+```
+
 The script runs:
 
 ```bash
-python src/jjit_scraper.py
-python src/analyzer.py
-python src/reporter.py
+python3 src/jjit_scraper.py -c jjit-scraper-config.json
+python3 src/analyzer.py
+python3 src/reporter.py
 ```
 
 ## Scrape offers
