@@ -1,6 +1,6 @@
 {
   "input": "res/analysis.json",
-  "output": "res/java-mid-report.pdf",
+  "output": "res/report.pdf",
   "title": "Job Report",
   "top_skills": 25,
   "top_title_keywords": 20,

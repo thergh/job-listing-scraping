@@ -42,23 +42,38 @@ python src/reporter.py
 
 ## Scrape offers
 
-```bash
-python src/jjit_scraper.py
-```
-
-Configuration:
+Default config file:
 
 ```text
 jjit-scraper-config.json
 ```
 
-The scraper writes structured job postings to the configured file in `data/`.
+Run with the default config:
 
-Default example:
-
-```text
-data/scraped.json
+```bash
+python3 src/jjit_scraper.py
 ```
+
+Run with a custom config path:
+
+```bash
+python3 src/jjit_scraper.py -c path/to/custom-config.json
+```
+
+Run with the default config but override the URL:
+
+```bash
+python3 src/jjit_scraper.py -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
+```
+
+Use both flags together in any order:
+
+```bash
+python3 src/jjit_scraper.py -c path/to/custom-config.json -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
+python3 src/jjit_scraper.py -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid' -c path/to/custom-config.json
+```
+
+The scraper writes structured job postings to the configured file in `data/`.
 
 Exported fields include:
 
@@ -66,6 +81,12 @@ Exported fields include:
 * `salary`
 * `required_skills`
 * `type_of_contract`
+
+The output also includes:
+
+* `filtered_total_offers`
+* `embedded_offers_total`
+* `offers_count`
 
 ## Analyse data
 
@@ -124,7 +145,6 @@ The PDF contains:
 ## Custom config paths
 
 ```bash
-python src/jjit_scraper.py jjit-scraper-config.json
 python src/analyzer.py analysis-config.json
 python src/reporter.py reporter-config.json
 ```

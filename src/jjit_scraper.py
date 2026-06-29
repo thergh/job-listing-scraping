@@ -71,9 +71,15 @@ def parse_args() -> argparse.Namespace:
         description="Scrape a filtered Just Join IT offers page from a JSON config file."
     )
     parser.add_argument(
+        "-c",
         "--config",
         default="jjit-scraper-config.json",
-        help="Path to scraper config JSON. Default: jit-scraper-config.json",
+        help="Path to scraper config JSON. Default: jjit-scraper-config.json",
+    )
+    parser.add_argument(
+        "-u",
+        "--url",
+        help="Override the URL from the config file.",
     )
     return parser.parse_args()
 
@@ -83,7 +89,7 @@ def load_config(config_path: Path) -> ScraperConfig:
         raw_config = json.loads(config_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise ScrapeError(
-            f"Config file not found: {config_path}. Create it from config.example.json."
+            f"Config file not found: {config_path}. Create it from jjit-scraper-config.json."
         ) from exc
 
     if not isinstance(raw_config, dict):
@@ -104,6 +110,17 @@ def load_config(config_path: Path) -> ScraperConfig:
         delay_seconds=float(raw_config.get("delay_seconds", 1.5)),
         max_idle_scrolls=int(raw_config.get("max_idle_scrolls", 10)),
         headful=bool(raw_config.get("headful", False)),
+    )
+
+
+def apply_cli_overrides(config: ScraperConfig, args: argparse.Namespace) -> ScraperConfig:
+    return ScraperConfig(
+        url=args.url.strip() if isinstance(args.url, str) and args.url.strip() else config.url,
+        output=config.output,
+        format=config.format,
+        delay_seconds=config.delay_seconds,
+        max_idle_scrolls=config.max_idle_scrolls,
+        headful=config.headful,
     )
 
 
@@ -561,7 +578,7 @@ def main() -> int:
     args = parse_args()
 
     try:
-        config = load_config(Path(args.config))
+        config = apply_cli_overrides(load_config(Path(args.config)), args)
         validate_url(config.url)
         output_path = Path(config.output)
         output_format = infer_format(output_path, config.format)
