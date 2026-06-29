@@ -1,5 +1,5 @@
-/data/
-/res/
+/data/*
+/res/*
 __pycache__/
 *.py[cod]
 .venv/
