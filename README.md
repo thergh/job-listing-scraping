@@ -1,6 +1,7 @@
 # Job listings scraping
 
-Scrapes filtered Just Join IT offers, analyses the exported JSON data, and generates a PDF report.
+Scrape filtered offers from Just Join IT or No Fluff Jobs, analyse them, retain
+historical snapshots, and generate a PDF report.
 
 ## Setup
 
@@ -20,43 +21,40 @@ chmod +x run.sh
 
 ## Full workflow
 
-Configure:
-
-* `jjit-scraper-config.json`
-* `analysis-config.json`
-* `reporter-config.json`
-
-Run the complete workflow with the default scraper config:
+Run the default Just Join IT workflow:
 
 ```bash
 ./run.sh
 ```
 
-Run with a custom scraper config:
+Run the default No Fluff Jobs workflow:
 
 ```bash
-./run.sh -c path/to/custom-config.json
+./run.sh -s nfj
 ```
 
-Run with the default scraper config but override the URL:
+Run a custom, matched set of scraper, analysis, and report configs:
+
+```bash
+./run.sh -s jjit -c path/to/java-scraper.json -a path/to/java-analysis.json -r path/to/java-reporter.json
+```
+
+Override only the source URL while keeping the selected workflow's output paths:
 
 ```bash
 ./run.sh -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
 ```
 
-Use flags together in any order:
+`run.sh` always runs the selected scraper, then its matching analysis and
+report config. When the analysis config declares `job_type`, it also generates
+the matching history report. Use `./run.sh -h` to see all flags.
+
+The workflow runs:
 
 ```bash
-./run.sh -c path/to/custom-config.json -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
-./run.sh -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid' -c path/to/custom-config.json
-```
-
-The script runs:
-
-```bash
-python3 src/jjit_scraper.py -c jjit-scraper-config.json
-python3 src/analyzer.py
-python3 src/reporter.py
+python3 src/<source>_scraper.py -c <scraper-config>
+python3 src/analyzer.py <analysis-config>
+python3 src/reporter.py <reporter-config>
 ```
 
 ## Scrape offers
@@ -119,7 +117,9 @@ Configuration:
 analysis-config.json
 ```
 
-The analyser reads scraped postings and generates aggregated JSON data.
+The analyser accepts either scraper JSON documents or JSON Lines exports. It
+validates the input before calculating aggregates and carries source and
+collection metadata into the analysis output.
 
 Default example:
 
@@ -147,6 +147,17 @@ Backfill CSV history from reports already generated in `res/`:
 ```bash
 python src/backfill_history.py
 ```
+
+Generate a date-sorted trend report for one job type:
+
+```bash
+python src/history_reporter.py java-mid
+python src/history_reporter.py cpp-mid --source 'Just Join IT'
+```
+
+The report charts posting count, salary coverage, and available PLN monthly
+salary averages. Same-source snapshots from the same day are consolidated,
+with scraper data preferred to PDF backfills.
 
 ## Generate PDF report
 

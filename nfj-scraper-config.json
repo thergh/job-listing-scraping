@@ -1,5 +1,5 @@
 {
-  "url": "https://nofluffjobs.com/pl/Java?criteria=seniority%3Dmid",
+  "url": "https://nofluffjobs.com/pl/Java?criteria=seniority%3Djunior",
   "output": "data/nfj-scraped.json",
   "format": "json",
   "delay_seconds": 0.1,

@@ -2,7 +2,9 @@
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -10,6 +12,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 DEFAULT_CONFIG = "reporter-config.json"
 PAGE_SIZE = (11.69, 8.27)
+PRIMARY = "#2563EB"
+ACCENT = "#0F766E"
+MUTED = "#64748B"
 
 
 def load_json(path):
@@ -31,7 +36,33 @@ def top_items(items, limit, excluded):
     )[:limit]
 
 
-def horizontal_bar(pdf, items, title):
+def source_label(source_url):
+    host = urlparse(source_url or "").netloc
+    return host.removeprefix("www.") or "Source not recorded"
+
+
+def collected_label(value):
+    if not value:
+        return "Collection time not recorded"
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime(
+            "Collected %d %b %Y, %H:%M UTC"
+        )
+    except ValueError:
+        return f"Collected {value}"
+
+
+def add_footer(fig, data):
+    fig.text(
+        0.01,
+        0.015,
+        f"{source_label(data.get('source_url'))}  •  {collected_label(data.get('gathered_at_utc'))}",
+        color=MUTED,
+        fontsize=8,
+    )
+
+
+def horizontal_bar(pdf, items, title, data):
     if not items:
         return
 
@@ -41,7 +72,7 @@ def horizontal_bar(pdf, items, title):
     percentages = [item["percentage"] for item in items]
 
     fig, ax = plt.subplots(figsize=PAGE_SIZE)
-    bars = ax.barh(labels, counts)
+    bars = ax.barh(labels, counts, color=PRIMARY)
 
     ax.set_title(title, fontsize=18, pad=18)
     ax.set_xlabel("Postings")
@@ -59,7 +90,8 @@ def horizontal_bar(pdf, items, title):
             fontsize=9,
         )
 
-    fig.tight_layout()
+    add_footer(fig, data)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -73,22 +105,22 @@ def overview_page(pdf, data, title):
 
     axes[0].axis("off")
     axes[0].text(
-        0.5, 0.68, f"{total}",
+        0.5, 0.72, f"{total}",
         ha="center", va="center",
         fontsize=58, fontweight="bold",
     )
     axes[0].text(
-        0.5, 0.52, "POSTINGS",
+        0.5, 0.57, "POSTINGS",
         ha="center", va="center",
         fontsize=18,
     )
     axes[0].text(
-        0.5, 0.32, f"{with_salary}",
+        0.5, 0.35, f"{with_salary}",
         ha="center", va="center",
         fontsize=38, fontweight="bold",
     )
     axes[0].text(
-        0.5, 0.21, "WITH SALARY",
+        0.5, 0.24, "WITH SALARY",
         ha="center", va="center",
         fontsize=14,
     )
@@ -99,19 +131,21 @@ def overview_page(pdf, data, title):
             labels=["With salary", "Without salary"],
             autopct="%1.1f%%",
             startangle=90,
+            colors=[ACCENT, "#E2E8F0"],
         )
     else:
         axes[1].axis("off")
 
     axes[1].set_title("Salary coverage", fontsize=18, pad=18)
 
-    fig.suptitle(title, fontsize=22, y=0.96)
-    fig.tight_layout()
+    fig.suptitle(title, fontsize=22, y=0.96, fontweight="bold")
+    add_footer(fig, data)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.93))
     pdf.savefig(fig)
     plt.close(fig)
 
 
-def salary_page(pdf, statistics, currency, unit):
+def salary_page(pdf, statistics, currency, unit, data):
     rows = [
         row
         for row in statistics
@@ -137,12 +171,13 @@ def salary_page(pdf, statistics, currency, unit):
     fig, ax = plt.subplots(figsize=PAGE_SIZE)
     positions = range(len(rows))
 
-    ax.barh(positions, minimums, label="Average minimum")
+    ax.barh(positions, minimums, label="Average minimum", color=PRIMARY)
     ax.barh(
         positions,
         widths,
         left=minimums,
         label="Average maximum range",
+        color="#93C5FD",
     )
 
     ax.set_yticks(list(positions), labels)
@@ -180,7 +215,27 @@ def salary_page(pdf, statistics, currency, unit):
             fontsize=9,
         )
 
-    fig.tight_layout()
+    add_footer(fig, data)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def methodology_page(pdf, data):
+    fig, ax = plt.subplots(figsize=PAGE_SIZE)
+    ax.axis("off")
+    ax.text(0.06, 0.88, "How to read this report", fontsize=24, fontweight="bold")
+    lines = [
+        "Each posting contributes at most once to a skill frequency.",
+        "Salary coverage means that a listing exposed a complete salary range.",
+        "Salary ranges are grouped by currency, contract type, and time unit.",
+        "Hourly, daily, monthly, and yearly amounts are never converted or compared directly.",
+        "Source totals can differ from unique postings when one offer has several locations.",
+    ]
+    for index, line in enumerate(lines):
+        ax.text(0.08, 0.72 - index * 0.11, f"•  {line}", fontsize=13, color="#1E293B")
+    add_footer(fig, data)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -206,6 +261,7 @@ def main():
     title = config.get("title") or Path(data.get("source", input_path.stem)).stem
 
     with PdfPages(output_path) as pdf:
+        pdf.infodict().update({"Title": title, "Author": "Job listings scraper"})
         overview_page(pdf, data, title)
 
         horizontal_bar(
@@ -219,6 +275,7 @@ def main():
                 "skills_title",
                 "Most requested skills and technologies",
             ),
+            data,
         )
 
         horizontal_bar(
@@ -232,6 +289,7 @@ def main():
                 "title_keywords_title",
                 "Most common job-title keywords",
             ),
+            data,
         )
 
         for unit in config.get("salary_units", [config.get("salary_unit", "month")]):
@@ -240,7 +298,11 @@ def main():
                 data.get("salary_statistics", []),
                 config.get("salary_currency", "PLN"),
                 unit,
+                data,
             )
+
+        if config.get("include_methodology", True):
+            methodology_page(pdf, data)
 
     print(output_path)
 

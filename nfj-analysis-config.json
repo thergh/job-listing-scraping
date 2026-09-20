@@ -1,0 +1,5 @@
+{
+  "input": "data/nfj-scraped.json",
+  "output": "res/nfj-java-junior-analysis.json",
+  "job_type": "java-junior"
+}

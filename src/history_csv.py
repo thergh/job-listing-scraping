@@ -7,7 +7,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 FIELDS = [
@@ -41,7 +41,7 @@ def job_type_from_url(source_url: str | None, fallback: str = "unknown") -> str:
         category = path_parts[-1]
     elif path_parts:
         category = path_parts[-1]
-    category = category.casefold().replace("%2b", "++")
+    category = unquote(category).casefold()
     aliases = {"c": "cpp", "c++": "cpp", "net": "dotnet"}
     category = aliases.get(category, category)
     level = (query.get("experience-levels") or [""])[0]
@@ -66,7 +66,7 @@ def append_row(csv_path: Path, row: dict[str, str]) -> bool:
         return False
     write_header = not csv_path.exists() or csv_path.stat().st_size == 0
     with csv_path.open("a", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=FIELDS)
+        writer = csv.DictWriter(file, fieldnames=FIELDS, lineterminator="\n")
         if write_header:
             writer.writeheader()
         writer.writerow(row)

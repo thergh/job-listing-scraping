@@ -18,10 +18,6 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
-SHOW_MORE_LABELS = ("Pokaż kolejne oferty", "Show more offers")
-SKIP_TITLE_MARKERS = (" NOWA",)
-
-
 class ScrapeError(RuntimeError):
     """Raised when the page structure cannot be parsed reliably."""
 
@@ -109,66 +105,7 @@ def validate_url(url: str) -> None:
         raise ScrapeError("Please pass a No Fluff Jobs offers URL from nofluffjobs.com.")
 
 
-def parse_salary_text(raw_text: str) -> list[dict[str, Any]]:
-    cleaned = " ".join(raw_text.replace("\xa0", " ").split())
-    match = re.search(r"(\d[\d ]*)\s*[–-]\s*(\d[\d ]*)\s*([A-Z]{3})", cleaned)
-    if not match:
-        return []
-    low = int(match.group(1).replace(" ", ""))
-    high = int(match.group(2).replace(" ", ""))
-    currency = match.group(3)
-    return [
-        {
-            "contract_type": None,
-            "from": low,
-            "to": high,
-            "currency": currency,
-            "unit": "month",
-            "gross": None,
-            "currency_source": "card_text",
-            "raw_text": cleaned,
-        }
-    ]
-
-
-def normalize_title(text: str) -> str:
-    normalized = " ".join(text.replace("\xa0", " ").split())
-    for marker in SKIP_TITLE_MARKERS:
-        if normalized.endswith(marker):
-            normalized = normalized[: -len(marker)].rstrip()
-    return normalized
-
-
-def dismiss_nonessential_overlays(page: Any) -> None:
-    """Close lightweight UI layers that can block the load-more button."""
-    selectors = (
-        "#usercentrics-cmp-ui button",
-        "[aria-label='Close']",
-        "[aria-label='Zamknij']",
-    )
-    for selector in selectors:
-        locator = page.locator(selector)
-        if locator.count():
-            try:
-                locator.first.evaluate("(el) => el.click()")
-                page.wait_for_timeout(150)
-            except Exception:
-                continue
-
-
-def click_show_more(page: Any, previous_count: int, delay_seconds: float) -> bool:
-    for label in SHOW_MORE_LABELS:
-        button = page.get_by_role("button", name=label)
-        if not button.count():
-            continue
-        button.first.scroll_into_view_if_needed()
-        button.first.evaluate("(el) => el.click()")
-        page.wait_for_timeout(max(int(delay_seconds * 1000), 300))
-        return True
-    return False
-
-
-def scrape_offers(url: str, delay_seconds: float, max_idle_scrolls: int, headless: bool) -> tuple[list[dict[str, Any]], int]:
+def scrape_offers(url: str, delay_seconds: float) -> tuple[list[dict[str, Any]], int]:
     """Read exact search matches from the site's server-rendered search state."""
     import time
     from urllib.parse import parse_qsl, urlencode, urlunparse
@@ -334,8 +271,6 @@ def main() -> int:
         offers, total_items = scrape_offers(
             config.url,
             delay_seconds=config.delay_seconds,
-            max_idle_scrolls=config.max_idle_scrolls,
-            headless=not config.headful,
         )
         document = build_output_document(config.url, offers, total_items)
         write_output(output_path, output_format, document)

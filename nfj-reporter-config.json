@@ -1,7 +1,7 @@
 {
-  "input": "res/jjit-java-junior-analysis.json",
-  "output": "res/jjit-java-junior-report.pdf",
-  "title": "Junior Java — Just Join IT",
+  "input": "res/nfj-java-junior-analysis.json",
+  "output": "res/nfj-java-junior-report.pdf",
+  "title": "Junior Java — No Fluff Jobs",
   "top_skills": 25,
   "top_title_keywords": 20,
   "salary_currency": "PLN",

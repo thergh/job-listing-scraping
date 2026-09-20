@@ -9,6 +9,7 @@ from pathlib import Path
 from statistics import fmean
 
 from history_csv import append_analysis_snapshot
+from input_data import InputDataError, collection_metadata, load_document
 
 
 TITLE_STOP_WORDS = {
@@ -126,19 +127,8 @@ def main():
         "res/analysis.json"
     )
 
-    document = json.loads(
-        input_path.read_text(encoding="utf-8")
-    )
-
-    if isinstance(document, list):
-        postings = document
-    else:
-        postings = document.get("offers")
-
-    if not isinstance(postings, list):
-        raise ValueError(
-            'Input JSON must be an array or contain an "offers" array'
-        )
+    document = load_document(input_path)
+    postings = document["offers"]
 
     title_counts = Counter()
     skill_counts = Counter()
@@ -235,6 +225,7 @@ def main():
         if isinstance(document, dict) else None,
         "gathered_at_utc": document.get("scraped_at_utc")
         if isinstance(document, dict) else None,
+        "collection": collection_metadata(document),
         "postings_total": len(postings),
         "postings_with_salary": len(postings_with_any_salary),
         "salary_coverage_percentage": round(
@@ -275,4 +266,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except InputDataError as exc:
+        raise SystemExit(f"error: {exc}") from exc
