@@ -8,6 +8,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import fmean
 
+from history_csv import append_analysis_snapshot
+
 
 TITLE_STOP_WORDS = {
     "a", "an", "and", "or", "the", "of", "for", "with", "in", "on",
@@ -231,6 +233,8 @@ def main():
         "source": config["input"],
         "source_url": document.get("source_url")
         if isinstance(document, dict) else None,
+        "gathered_at_utc": document.get("scraped_at_utc")
+        if isinstance(document, dict) else None,
         "postings_total": len(postings),
         "postings_with_salary": len(postings_with_any_salary),
         "salary_coverage_percentage": round(
@@ -254,8 +258,20 @@ def main():
         encoding="utf-8"
     )
 
+    history_dir = Path(config.get("history_dir", "history"))
+    if not history_dir.is_absolute():
+        history_dir = Path(__file__).resolve().parent.parent / history_dir
+
+    history_path = append_analysis_snapshot(
+        result,
+        document if isinstance(document, dict) else {},
+        history_dir,
+        config.get("job_type"),
+    )
+
     print(f"Analyzed {len(postings)} postings")
     print(f"Result: {output_path}")
+    print(f"History: {history_path}")
 
 
 if __name__ == "__main__":

@@ -13,11 +13,12 @@ import argparse
 import json
 import re
 import sys
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -155,7 +156,50 @@ def decode_next_chunks(html: str) -> list[str]:
     encoded_chunks = NEXT_CHUNK_PATTERN.findall(html)
     if not encoded_chunks:
         raise ScrapeError("Could not find embedded Next.js payload in page HTML.")
-    return [bytes(chunk, "utf-8").decode("unicode_escape") for chunk in encoded_chunks]
+    return [json.loads('"' + chunk + '"') for chunk in encoded_chunks]
+
+
+def parse_paginated_state(html: str):
+    payload = "".join(decode_next_chunks(html))
+    marker = payload.find('{"offers":[')
+    if marker == -1:
+        return None
+    props, _ = json.JSONDecoder().raw_decode(payload[marker:])
+    count = re.search(r'"count":(\d+),"label":"Job offers', payload)
+    if count is None:
+        raise ScrapeError("Could not find the filtered offers count.")
+    next_href = None
+    for match in re.finditer(r'\{"href":', payload):
+        link, _ = json.JSONDecoder().raw_decode(payload[match.start():])
+        if link.get("dataCy") == "offers-list-pagination-next":
+            next_href = link["href"]
+            break
+    return props["offers"], int(count[1]), next_href
+
+
+def scrape_paginated_offers(session, url, html, delay_seconds):
+    rows = []
+    visited = set()
+    total = None
+    while True:
+        if url in visited:
+            raise ScrapeError("Pagination returned a repeated page.")
+        visited.add(url)
+        state = parse_paginated_state(html)
+        if state is None:
+            raise ScrapeError("A paginated page did not contain offer data.")
+        offers, page_total, next_href = state
+        if total is None:
+            total = page_total
+        rows.extend(offers)
+        print(f"Collected page {len(visited)}: {len(offers)} offers", file=sys.stderr)
+        if not next_href:
+            break
+        url = urljoin(url, next_href)
+        validate_url(url)
+        time.sleep(delay_seconds)
+        html = fetch_html(session, url)
+    return dedupe_offers(rows), total
 
 
 def find_balanced_json_object(text: str, start_index: int) -> str:
@@ -584,6 +628,19 @@ def main() -> int:
         output_format = infer_format(output_path, config.format)
         session = build_session()
         html = fetch_html(session, config.url)
+        paginated_state = parse_paginated_state(html)
+        if paginated_state is not None:
+            offers, total = scrape_paginated_offers(
+                session, config.url, html, config.delay_seconds
+            )
+            document = build_output_document(
+                config.url, [normalize_offer(offer) for offer in offers], total, len(paginated_state[0])
+            )
+            document["experience_levels"] = sorted({offer.get("experienceLevel", "unknown") for offer in offers})
+            document["location_entries_count"] = sum(max(1, len(offer.get("multilocation") or [])) for offer in offers)
+            write_output(output_path, output_format, document)
+            print(json.dumps({"output": str(output_path), "offers_count": len(offers), "expected_total": total}))
+            return 0
         bootstrap = parse_bootstrap_state(html)
 
         normalized_rows = [normalize_offer(offer) for offer in dedupe_offers(bootstrap.offers)]

@@ -234,12 +234,13 @@ def main():
             ),
         )
 
-        salary_page(
-            pdf,
-            data.get("salary_statistics", []),
-            config.get("salary_currency", "PLN"),
-            config.get("salary_unit", "month"),
-        )
+        for unit in config.get("salary_units", [config.get("salary_unit", "month")]):
+            salary_page(
+                pdf,
+                data.get("salary_statistics", []),
+                config.get("salary_currency", "PLN"),
+                unit,
+            )
 
     print(output_path)
 

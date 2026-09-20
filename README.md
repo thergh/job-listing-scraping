@@ -136,6 +136,18 @@ The output contains:
 * skill and technology frequencies
 * counts and percentages
 
+Each analysis also appends a snapshot to `history/<job-type>.csv`. A row records
+the scraper's UTC collection time, source, posting and salary coverage totals,
+the top 25 skills, and salary statistics. Set `job_type` or `history_dir` in an
+analysis config to override the inferred CSV name or destination. Relative
+`history_dir` values are resolved from the repository root.
+
+Backfill CSV history from reports already generated in `res/`:
+
+```bash
+python src/backfill_history.py
+```
+
 ## Generate PDF report
 
 ```bash
