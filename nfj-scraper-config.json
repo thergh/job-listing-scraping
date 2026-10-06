@@ -1,8 +1,0 @@
-{
-  "url": "https://nofluffjobs.com/pl/Java?criteria=seniority%3Djunior",
-  "output": "data/nfj-scraped.json",
-  "format": "json",
-  "delay_seconds": 0.1,
-  "max_idle_scrolls": 10,
-  "headful": false
-}

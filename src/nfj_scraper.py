@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -12,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
-
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -32,35 +30,8 @@ class ScraperConfig:
     headful: bool = False
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Scrape a filtered No Fluff Jobs offers page from a JSON config file."
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        default="nfj-scraper-config.json",
-        help="Path to scraper config JSON. Default: nfj-scraper-config.json",
-    )
-    parser.add_argument(
-        "-u",
-        "--url",
-        help="Override the URL from the config file.",
-    )
-    return parser.parse_args()
-
-
-def load_config(config_path: Path) -> ScraperConfig:
-    try:
-        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise ScrapeError(
-            f"Config file not found: {config_path}. Create it from nfj-scraper-config.json."
-        ) from exc
-
-    if not isinstance(raw_config, dict):
-        raise ScrapeError("Config file must contain a JSON object.")
-
+def parse_config(raw_config: dict[str, Any]) -> ScraperConfig:
+    """Validate one listing from the config file."""
     url = raw_config.get("url")
     if not isinstance(url, str) or not url.strip():
         raise ScrapeError("Config field `url` is required and must be a non-empty string.")
@@ -76,17 +47,6 @@ def load_config(config_path: Path) -> ScraperConfig:
         delay_seconds=float(raw_config.get("delay_seconds", 0.1)),
         max_idle_scrolls=int(raw_config.get("max_idle_scrolls", 10)),
         headful=bool(raw_config.get("headful", False)),
-    )
-
-
-def apply_cli_overrides(config: ScraperConfig, args: argparse.Namespace) -> ScraperConfig:
-    return ScraperConfig(
-        url=args.url.strip() if isinstance(args.url, str) and args.url.strip() else config.url,
-        output=config.output,
-        format=config.format,
-        delay_seconds=config.delay_seconds,
-        max_idle_scrolls=config.max_idle_scrolls,
-        headful=config.headful,
     )
 
 
@@ -260,36 +220,24 @@ def write_output(output_path: Path, fmt: str, document: dict[str, Any]) -> None:
         raise ValueError(f"Unsupported output format: {fmt}")
 
 
-def main() -> int:
-    args = parse_args()
-
-    try:
-        config = apply_cli_overrides(load_config(Path(args.config)), args)
-        validate_url(config.url)
-        output_path = Path(config.output)
-        output_format = infer_format(output_path, config.format)
-        offers, total_items = scrape_offers(
-            config.url,
-            delay_seconds=config.delay_seconds,
+def process_config(config: ScraperConfig) -> None:
+    validate_url(config.url)
+    output_path = Path(config.output)
+    output_format = infer_format(output_path, config.format)
+    offers, total_items = scrape_offers(
+        config.url,
+        delay_seconds=config.delay_seconds,
+    )
+    document = build_output_document(config.url, offers, total_items)
+    write_output(output_path, output_format, document)
+    print(
+        json.dumps(
+            {
+                "output": str(output_path),
+                "format": output_format,
+                "offers_count": document["offers_count"],
+                "expected_total": total_items,
+                "embedded_offers_total": total_items,
+            }
         )
-        document = build_output_document(config.url, offers, total_items)
-        write_output(output_path, output_format, document)
-        print(
-            json.dumps(
-                {
-                    "output": str(output_path),
-                    "format": output_format,
-                    "offers_count": document["offers_count"],
-                    "expected_total": total_items,
-                    "embedded_offers_total": total_items,
-                }
-            )
-        )
-        return 0
-    except (ScrapeError, json.JSONDecodeError, ValueError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    )

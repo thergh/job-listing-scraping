@@ -4,12 +4,15 @@ import argparse
 import html
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import fmean
 
 from history_csv import append_analysis_snapshot
 from input_data import InputDataError, collection_metadata, load_document
+from config_entries import require_unique_values
+from workflow_config import load_analysis_entries
 
 
 TITLE_STOP_WORDS = {
@@ -110,16 +113,30 @@ def main():
     parser.add_argument(
         "config",
         nargs="?",
-        default="analysis-config.json"
+        default="jobs-config.json"
     )
     args = parser.parse_args()
 
     config_path = Path(args.config).resolve()
-    project_root = config_path.parent
+    try:
+        configs = load_analysis_entries(config_path)
+        require_unique_values(configs, "output")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
-    config = json.loads(
-        config_path.read_text(encoding="utf-8")
-    )
+    failures = 0
+    for index, config in enumerate(configs, start=1):
+        try:
+            process_config(config, config_path)
+        except (InputDataError, OSError, KeyError, TypeError, ValueError) as exc:
+            failures += 1
+            print(f"error: listing {index}: {exc}", file=sys.stderr)
+    return 1 if failures else 0
+
+
+def process_config(config, config_path):
+    project_root = config_path.parent
 
     input_path = project_root / config["input"]
     output_path = project_root / config.get(
@@ -249,7 +266,7 @@ def main():
         encoding="utf-8"
     )
 
-    history_dir = Path(config.get("history_dir", "history"))
+    history_dir = Path(config.get("history_dir", "res/history/snapshots"))
     if not history_dir.is_absolute():
         history_dir = Path(__file__).resolve().parent.parent / history_dir
 
@@ -266,7 +283,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except InputDataError as exc:
-        raise SystemExit(f"error: {exc}") from exc
+    raise SystemExit(main())

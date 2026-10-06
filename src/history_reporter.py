@@ -148,9 +148,12 @@ def monthly_salary_page(pdf, job_type, snapshots):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate a PDF trend report from a job history CSV.")
-    parser.add_argument("job_type", help="CSV stem in history/, for example java-mid")
-    parser.add_argument("--history-dir", default="history")
-    parser.add_argument("--output", help="Default: res/history-<job_type>.pdf")
+    parser.add_argument(
+        "job_type",
+        help="CSV stem in res/history/snapshots/, for example java-mid",
+    )
+    parser.add_argument("--history-dir", default="res/history/snapshots")
+    parser.add_argument("--output", help="Default: res/history/reports/<job_type>.pdf")
     parser.add_argument("--source", help="Only include this source label")
     args = parser.parse_args()
 
@@ -163,7 +166,9 @@ def main():
     source_suffix = ""
     if args.source:
         source_suffix = "-" + re.sub(r"[^a-z0-9]+", "-", args.source.casefold()).strip("-")
-    output_path = Path(args.output or f"res/history-{args.job_type}{source_suffix}.pdf")
+    output_path = Path(
+        args.output or f"res/history/reports/{args.job_type}{source_suffix}.pdf"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(output_path) as pdf:
         pdf.infodict().update({"Title": f"History — {args.job_type}", "Author": "Job listings scraper"})

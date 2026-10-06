@@ -1,192 +1,122 @@
 # Job listings scraping
 
-Scrape filtered offers from Just Join IT or No Fluff Jobs, analyse them, retain
-historical snapshots, and generate a PDF report.
+Scrape searches from Just Join IT and No Fluff Jobs, analyse each result set,
+retain historical snapshots, and generate PDF reports.
 
 ## Setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-
 python -m pip install -r requirements.txt
 python -m playwright install chromium
-```
-
-Make the workflow script executable:
-
-```bash
 chmod +x run.sh
 ```
 
-## Full workflow
+## Run the complete workflow
 
-Run the default Just Join IT workflow:
+All searches and settings live in one universal config:
 
 ```bash
 ./run.sh
+./run.sh -c path/to/jobs-config.json
 ```
 
-Run the default No Fluff Jobs workflow:
+The workflow runs the scraper, analyzer, reporter, and history reporter for
+every configured search. Just Join IT and No Fluff Jobs URLs can coexist in the
+same `listings` array.
+
+## Configuration
+
+The default file is [jobs-config.json](jobs-config.json). A minimal config is:
+
+```json
+{
+  "format": "json",
+  "delay_seconds": 0.1,
+  "listings": [
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/java?experience-levels=mid"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/Python?criteria=seniority%3Djunior"
+    }
+  ]
+}
+```
+
+Root fields are shared by all listings. A listing can override any shared
+field. Entries are processed independently; if one scrape fails, the remaining
+entries are still attempted and the scraper exits unsuccessfully afterward.
+
+The application infers source, technology, seniority, and output paths from
+each URL:
+
+| Value | Example for a Just Join IT Java mid search |
+| --- | --- |
+| Scraped data | `data/jjit-java-mid.json` |
+| Analysis | `res/analysis/jjit-java-mid.json` |
+| PDF report | `res/reports/jjit-java-mid.pdf` |
+| History snapshot | `res/history/snapshots/java-mid.csv` |
+| History report | `res/history/reports/java-mid.pdf` |
+| Report title | `Mid Java — Just Join IT` |
+
+Optional entry overrides are:
+
+- `data_output`
+- `analysis_output`
+- `report_output`
+- `job_type`
+- `report_title`
+
+Scraper settings include `format` (`json` or `jsonl`), `delay_seconds`,
+`max_idle_scrolls`, and `headful`. Reporter settings include `top_skills`, `top_title_keywords`,
+`salary_currency`, `salary_units`, `include_methodology`, `exclude_skills`, and
+`exclude_title_keywords`.
+
+Output paths must be distinct after inference or overrides are applied.
+
+## Run individual stages
+
+Each stage consumes the same universal config:
 
 ```bash
-./run.sh -s nfj
+python3 src/scraper.py -c jobs-config.json
+python3 src/analyzer.py jobs-config.json
+python3 src/reporter.py jobs-config.json
 ```
 
-Run a custom, matched set of scraper, analysis, and report configs:
-
-```bash
-./run.sh -s jjit -c path/to/java-scraper.json -a path/to/java-analysis.json -r path/to/java-reporter.json
-```
-
-Override only the source URL while keeping the selected workflow's output paths:
-
-```bash
-./run.sh -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
-```
-
-`run.sh` always runs the selected scraper, then its matching analysis and
-report config. When the analysis config declares `job_type`, it also generates
-the matching history report. Use `./run.sh -h` to see all flags.
-
-The workflow runs:
-
-```bash
-python3 src/<source>_scraper.py -c <scraper-config>
-python3 src/analyzer.py <analysis-config>
-python3 src/reporter.py <reporter-config>
-```
-
-## Scrape offers
-
-Default config file:
+Generated artifacts are grouped by type:
 
 ```text
-jjit-scraper-config.json
+res/
+├── analysis/   # analysis JSON
+├── reports/    # per-search PDF reports
+├── history/
+│   ├── snapshots/  # historical CSV data
+│   └── reports/    # historical trend PDFs
+├── notes/      # report notes
+└── configs/    # archived report-specific configs
 ```
 
-Run with the default config:
+The scraper exports `job_name`, `salary`, `required_skills`, and
+`type_of_contract`, plus collection metadata. The analyzer calculates posting
+counts, salary coverage and statistics, title keywords, and skill frequencies.
+The reporter turns each analysis into a PDF.
+
+## History
+
+Every analysis appends a snapshot to
+`res/history/snapshots/<job-type>.csv`. Generate a date-sorted trend report
+manually with:
 
 ```bash
-python3 src/jjit_scraper.py
+python3 src/history_reporter.py java-mid
+python3 src/history_reporter.py cpp-mid --source 'Just Join IT'
 ```
 
-Run with a custom config path:
+Backfill CSV history from reports in `res/reports/` with:
 
 ```bash
-python3 src/jjit_scraper.py -c path/to/custom-config.json
-```
-
-Run with the default config but override the URL:
-
-```bash
-python3 src/jjit_scraper.py -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
-```
-
-Use both flags together in any order:
-
-```bash
-python3 src/jjit_scraper.py -c path/to/custom-config.json -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid'
-python3 src/jjit_scraper.py -u 'https://justjoin.it/job-offers/all-locations/java?experience-levels=mid' -c path/to/custom-config.json
-```
-
-The scraper writes structured job postings to the configured file in `data/`.
-
-Exported fields include:
-
-* `job_name`
-* `salary`
-* `required_skills`
-* `type_of_contract`
-
-The output also includes:
-
-* `filtered_total_offers`
-* `embedded_offers_total`
-* `offers_count`
-
-## Analyse data
-
-```bash
-python src/analyzer.py
-```
-
-Configuration:
-
-```text
-analysis-config.json
-```
-
-The analyser accepts either scraper JSON documents or JSON Lines exports. It
-validates the input before calculating aggregates and carries source and
-collection metadata into the analysis output.
-
-Default example:
-
-```text
-res/analysis.json
-```
-
-The output contains:
-
-* posting count
-* salary coverage
-* salary statistics
-* job-title keyword frequencies
-* skill and technology frequencies
-* counts and percentages
-
-Each analysis also appends a snapshot to `history/<job-type>.csv`. A row records
-the scraper's UTC collection time, source, posting and salary coverage totals,
-the top 25 skills, and salary statistics. Set `job_type` or `history_dir` in an
-analysis config to override the inferred CSV name or destination. Relative
-`history_dir` values are resolved from the repository root.
-
-Backfill CSV history from reports already generated in `res/`:
-
-```bash
-python src/backfill_history.py
-```
-
-Generate a date-sorted trend report for one job type:
-
-```bash
-python src/history_reporter.py java-mid
-python src/history_reporter.py cpp-mid --source 'Just Join IT'
-```
-
-The report charts posting count, salary coverage, and available PLN monthly
-salary averages. Same-source snapshots from the same day are consolidated,
-with scraper data preferred to PDF backfills.
-
-## Generate PDF report
-
-```bash
-python src/reporter.py
-```
-
-Configuration:
-
-```text
-reporter-config.json
-```
-
-Default example:
-
-```text
-res/report.pdf
-```
-
-The PDF contains:
-
-* posting and salary coverage charts
-* skill and technology frequency charts
-* job-title keyword charts
-* salary range charts
-
-## Custom config paths
-
-```bash
-python src/analyzer.py analysis-config.json
-python src/reporter.py reporter-config.json
+python3 src/backfill_history.py
 ```

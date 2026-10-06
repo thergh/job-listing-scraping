@@ -1,5 +1,0 @@
-{
-  "input": "data/scraped.json",
-  "output": "res/jjit-java-junior-analysis.json",
-  "job_type": "java-junior"
-}

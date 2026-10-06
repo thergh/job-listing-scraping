@@ -1,0 +1,51 @@
+{
+  "format": "json",
+  "delay_seconds": 0.1,
+  "max_idle_scrolls": 10,
+  "headful": false,
+  "top_skills": 25,
+  "top_title_keywords": 20,
+  "salary_currency": "PLN",
+  "salary_units": ["month", "hour", "day", "year"],
+  "include_methodology": true,
+  "exclude_skills": [],
+  "exclude_title_keywords": [],
+  "listings": [
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/java?experience-levels=mid"
+    },
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/c?experience-levels=mid"
+    },
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/python?experience-levels=mid"
+    },
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/c?experience-levels=junior"
+    },
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/java?experience-levels=junior"
+    },
+    {
+      "url": "https://justjoin.it/job-offers/all-locations/python?experience-levels=junior"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/Java?criteria=seniority%3Djunior"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/Python?criteria=seniority%3Djunior"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/C%2B%2B?criteria=seniority%3Djunior"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/Java?criteria=seniority%3Dmid"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/Python?criteria=seniority%3Dmid"
+    },
+    {
+      "url": "https://nofluffjobs.com/pl/C%2B%2B?criteria=seniority%3Dmid"
+    }
+  ]
+}

@@ -95,8 +95,8 @@ def parse_pdf(path: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reports-dir", default="res")
-    parser.add_argument("--history-dir", default="history")
+    parser.add_argument("--reports-dir", default="res/reports")
+    parser.add_argument("--history-dir", default="res/history/snapshots")
     args = parser.parse_args()
     for report in sorted(Path(args.reports_dir).glob("*.pdf")):
         try:

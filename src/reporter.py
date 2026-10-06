@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -9,8 +10,11 @@ from urllib.parse import urlparse
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from config_entries import require_unique_values
+from workflow_config import load_reporter_entries
 
-DEFAULT_CONFIG = "reporter-config.json"
+
+DEFAULT_CONFIG = "jobs-config.json"
 PAGE_SIZE = (11.69, 8.27)
 PRIMARY = "#2563EB"
 ACCENT = "#0F766E"
@@ -251,7 +255,24 @@ def main():
     args = parser.parse_args()
 
     config_path = Path(args.config).resolve()
-    config = load_json(config_path)
+    try:
+        configs = load_reporter_entries(config_path)
+        require_unique_values(configs, "output")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    failures = 0
+    for index, config in enumerate(configs, start=1):
+        try:
+            process_config(config, config_path)
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            failures += 1
+            print(f"error: listing {index}: {exc}", file=sys.stderr)
+    return 1 if failures else 0
+
+
+def process_config(config, config_path):
 
     input_path = resolve_path(config_path, config["input"]).resolve()
     output_path = resolve_path(config_path, config["output"]).resolve()
@@ -308,4 +329,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

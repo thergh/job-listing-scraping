@@ -1,5 +1,9 @@
 /data/*
 /res/*
+!/res/history/
+/res/history/*
+!/res/history/snapshots/
+!/res/history/snapshots/*.csv
 __pycache__/
 *.py[cod]
 .venv/

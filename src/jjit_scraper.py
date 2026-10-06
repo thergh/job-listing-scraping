@@ -9,7 +9,6 @@ through its own frontend flow.
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -21,7 +20,6 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
-
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -67,35 +65,8 @@ CONTRACT_LABELS = {
 SKIP_CARD_LINES = {"Super offer", "1-click Apply", "Apply"}
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Scrape a filtered Just Join IT offers page from a JSON config file."
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        default="jjit-scraper-config.json",
-        help="Path to scraper config JSON. Default: jjit-scraper-config.json",
-    )
-    parser.add_argument(
-        "-u",
-        "--url",
-        help="Override the URL from the config file.",
-    )
-    return parser.parse_args()
-
-
-def load_config(config_path: Path) -> ScraperConfig:
-    try:
-        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise ScrapeError(
-            f"Config file not found: {config_path}. Create it from jjit-scraper-config.json."
-        ) from exc
-
-    if not isinstance(raw_config, dict):
-        raise ScrapeError("Config file must contain a JSON object.")
-
+def parse_config(raw_config: dict[str, Any]) -> ScraperConfig:
+    """Validate one listing from the config file."""
     url = raw_config.get("url")
     if not isinstance(url, str) or not url.strip():
         raise ScrapeError("Config field `url` is required and must be a non-empty string.")
@@ -111,17 +82,6 @@ def load_config(config_path: Path) -> ScraperConfig:
         delay_seconds=float(raw_config.get("delay_seconds", 1.5)),
         max_idle_scrolls=int(raw_config.get("max_idle_scrolls", 10)),
         headful=bool(raw_config.get("headful", False)),
-    )
-
-
-def apply_cli_overrides(config: ScraperConfig, args: argparse.Namespace) -> ScraperConfig:
-    return ScraperConfig(
-        url=args.url.strip() if isinstance(args.url, str) and args.url.strip() else config.url,
-        output=config.output,
-        format=config.format,
-        delay_seconds=config.delay_seconds,
-        max_idle_scrolls=config.max_idle_scrolls,
-        headful=config.headful,
     )
 
 
@@ -618,68 +578,56 @@ def validate_url(url: str) -> None:
         raise ScrapeError("Please pass a Just Join IT offers URL from justjoin.it.")
 
 
-def main() -> int:
-    args = parse_args()
-
-    try:
-        config = apply_cli_overrides(load_config(Path(args.config)), args)
-        validate_url(config.url)
-        output_path = Path(config.output)
-        output_format = infer_format(output_path, config.format)
-        session = build_session()
-        html = fetch_html(session, config.url)
-        paginated_state = parse_paginated_state(html)
-        if paginated_state is not None:
-            offers, total = scrape_paginated_offers(
-                session, config.url, html, config.delay_seconds
-            )
-            document = build_output_document(
-                config.url, [normalize_offer(offer) for offer in offers], total, len(paginated_state[0])
-            )
-            document["experience_levels"] = sorted({offer.get("experienceLevel", "unknown") for offer in offers})
-            document["location_entries_count"] = sum(max(1, len(offer.get("multilocation") or [])) for offer in offers)
-            write_output(output_path, output_format, document)
-            print(json.dumps({"output": str(output_path), "offers_count": len(offers), "expected_total": total}))
-            return 0
-        bootstrap = parse_bootstrap_state(html)
-
-        normalized_rows = [normalize_offer(offer) for offer in dedupe_offers(bootstrap.offers)]
-        if len(normalized_rows) < bootstrap.total_items:
-            normalized_rows = dedupe_offers(
-                scrape_remaining_offers_with_playwright(
-                    url=config.url,
-                    initial_rows=normalized_rows,
-                    total_items=bootstrap.total_items,
-                    delay_seconds=config.delay_seconds,
-                    max_idle_scrolls=config.max_idle_scrolls,
-                    headless=not config.headful,
-                )
-            )
-
+def process_config(config: ScraperConfig) -> None:
+    validate_url(config.url)
+    output_path = Path(config.output)
+    output_format = infer_format(output_path, config.format)
+    session = build_session()
+    html = fetch_html(session, config.url)
+    paginated_state = parse_paginated_state(html)
+    if paginated_state is not None:
+        offers, total = scrape_paginated_offers(
+            session, config.url, html, config.delay_seconds
+        )
         document = build_output_document(
-            config.url,
-            normalized_rows,
-            filtered_total_offers=bootstrap.total_items,
-            embedded_offers_total=bootstrap.embedded_offers_total,
+            config.url, [normalize_offer(offer) for offer in offers], total, len(paginated_state[0])
         )
+        document["experience_levels"] = sorted({offer.get("experienceLevel", "unknown") for offer in offers})
+        document["location_entries_count"] = sum(max(1, len(offer.get("multilocation") or [])) for offer in offers)
         write_output(output_path, output_format, document)
+        print(json.dumps({"output": str(output_path), "offers_count": len(offers), "expected_total": total}))
+        return
+    bootstrap = parse_bootstrap_state(html)
 
-        print(
-            json.dumps(
-                {
-                    "output": str(output_path),
-                    "format": output_format,
-                    "offers_count": document["offers_count"],
-                    "expected_total": bootstrap.total_items,
-                    "embedded_offers_total": bootstrap.embedded_offers_total,
-                }
+    normalized_rows = [normalize_offer(offer) for offer in dedupe_offers(bootstrap.offers)]
+    if len(normalized_rows) < bootstrap.total_items:
+        normalized_rows = dedupe_offers(
+            scrape_remaining_offers_with_playwright(
+                url=config.url,
+                initial_rows=normalized_rows,
+                total_items=bootstrap.total_items,
+                delay_seconds=config.delay_seconds,
+                max_idle_scrolls=config.max_idle_scrolls,
+                headless=not config.headful,
             )
         )
-        return 0
-    except (requests.RequestException, ScrapeError, json.JSONDecodeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
 
+    document = build_output_document(
+        config.url,
+        normalized_rows,
+        filtered_total_offers=bootstrap.total_items,
+        embedded_offers_total=bootstrap.embedded_offers_total,
+    )
+    write_output(output_path, output_format, document)
 
-if __name__ == "__main__":
-    sys.exit(main())
+    print(
+        json.dumps(
+            {
+                "output": str(output_path),
+                "format": output_format,
+                "offers_count": document["offers_count"],
+                "expected_total": bootstrap.total_items,
+                "embedded_offers_total": bootstrap.embedded_offers_total,
+            }
+        )
+    )
