@@ -18,6 +18,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 PAGE_SIZE = (11.69, 8.27)
 SOURCE_COLORS = {"Just Join IT": "#2563EB", "No Fluff Jobs": "#0F766E"}
+INK = "#0F172A"
+MUTED = "#64748B"
+LIGHT = "#E2E8F0"
 
 
 def parse_snapshot(row):
@@ -71,52 +74,85 @@ def add_footer(fig, job_type, snapshots):
     )
 
 
-def overview_page(pdf, job_type, snapshots):
-    latest = snapshots[-1]
-    fig, axes = plt.subplots(1, 3, figsize=PAGE_SIZE)
-    values = [
-        (f"{int(latest['postings_total'])}", "LATEST POSTINGS"),
-        (f"{latest['salary_coverage_percentage']:.1f}%", "LATEST SALARY COVERAGE"),
-        (latest["collected_at"].strftime("%d %b %Y"), "LATEST COLLECTION"),
-    ]
-    for axis, (value, label) in zip(axes, values):
-        axis.axis("off")
-        axis.text(0.5, 0.58, value, ha="center", va="center", fontsize=31, fontweight="bold")
-        axis.text(0.5, 0.37, label, ha="center", va="center", fontsize=11, color="#475569")
-    fig.suptitle(f"History — {job_type}", fontsize=24, fontweight="bold", y=0.88)
-    fig.text(
-        0.5,
-        0.14,
-        "Sources: " + ", ".join(sorted({snapshot["source"] for snapshot in snapshots})),
-        ha="center",
-        fontsize=12,
-    )
-    add_footer(fig, job_type, snapshots)
-    fig.tight_layout(rect=(0, 0.04, 1, 0.8))
-    pdf.savefig(fig)
-    plt.close(fig)
+def style_axis(ax):
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.tick_params(axis="both", colors="#475569", labelsize=8)
+    ax.set_axisbelow(True)
 
 
-def line_page(pdf, job_type, snapshots, metric, title, ylabel, percent=False):
-    fig, ax = plt.subplots(figsize=PAGE_SIZE)
+def draw_line(ax, snapshots, metric, title, ylabel, percent=False):
     for index, (source, rows) in enumerate(source_groups(snapshots).items()):
         ax.plot(
             [row["collected_at"] for row in rows],
             [row[metric] for row in rows],
             marker="o",
-            linewidth=2.5,
+            markersize=4,
+            linewidth=2.2,
             label=source,
             color=source_color(source, index),
         )
-    ax.set_title(title, fontsize=20, pad=18)
-    ax.set_ylabel(ylabel)
-    ax.grid(alpha=0.25)
-    ax.legend()
+    ax.set_title(title, fontsize=14, pad=10, loc="left", color=INK, fontweight="bold")
+    ax.set_ylabel(ylabel, fontsize=9, color=MUTED)
+    ax.grid(color=LIGHT, linewidth=0.8)
+    ax.legend(frameon=False, fontsize=8)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b\n%Y"))
     if percent:
         ax.set_ylim(0, 100)
+    style_axis(ax)
+
+
+def dashboard_page(pdf, job_type, snapshots):
+    latest = snapshots[-1]
+    fig = plt.figure(figsize=PAGE_SIZE)
+    grid = fig.add_gridspec(
+        2,
+        2,
+        height_ratios=(0.2, 0.8),
+        left=0.07,
+        right=0.97,
+        top=0.86,
+        bottom=0.09,
+        wspace=0.25,
+        hspace=0.22,
+    )
+    summary = fig.add_subplot(grid[0, :])
+    summary.axis("off")
+    values = [
+        (f"{int(latest['postings_total']):,}", "LATEST POSTINGS"),
+        (f"{latest['salary_coverage_percentage']:.1f}%", "SALARY COVERAGE"),
+        (latest["collected_at"].strftime("%d %b %Y"), "LATEST COLLECTION"),
+        (f"{len(snapshots)}", "DATED SNAPSHOTS"),
+    ]
+    for index, (value, label) in enumerate(values):
+        x = 0.01 + index * 0.245
+        summary.text(x, 0.62, value, fontsize=22, fontweight="bold", color=INK, va="center")
+        summary.text(x, 0.18, label, fontsize=8, fontweight="bold", color=MUTED, va="center")
+
+    draw_line(
+        fig.add_subplot(grid[1, 0]),
+        snapshots,
+        "postings_total",
+        "Posting count over time",
+        "Postings",
+    )
+    draw_line(
+        fig.add_subplot(grid[1, 1]),
+        snapshots,
+        "salary_coverage_percentage",
+        "Salary coverage over time",
+        "Listings with salary (%)",
+        percent=True,
+    )
+    fig.suptitle(
+        f"History — {job_type}",
+        x=0.07,
+        y=0.95,
+        ha="left",
+        fontsize=20,
+        fontweight="bold",
+        color=INK,
+    )
     add_footer(fig, job_type, snapshots)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -135,11 +171,19 @@ def monthly_salary_page(pdf, job_type, snapshots):
     for index, (label, points) in enumerate(sorted(series.items())):
         points.sort()
         ax.plot(*zip(*points), marker="o", linewidth=2.5, label=label, color=plt.get_cmap("tab10")(index))
-    ax.set_title("Average listed salary — PLN / month", fontsize=20, pad=18)
-    ax.set_ylabel("PLN / month")
-    ax.grid(alpha=0.25)
-    ax.legend()
+    ax.set_title(
+        "Average listed salary — PLN / month",
+        fontsize=16,
+        pad=12,
+        loc="left",
+        color=INK,
+        fontweight="bold",
+    )
+    ax.set_ylabel("PLN / month", fontsize=9, color=MUTED)
+    ax.grid(color=LIGHT, linewidth=0.8)
+    ax.legend(frameon=False, fontsize=8)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b\n%Y"))
+    style_axis(ax)
     add_footer(fig, job_type, snapshots)
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     pdf.savefig(fig)
@@ -172,17 +216,7 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(output_path) as pdf:
         pdf.infodict().update({"Title": f"History — {args.job_type}", "Author": "Job listings scraper"})
-        overview_page(pdf, args.job_type, snapshots)
-        line_page(pdf, args.job_type, snapshots, "postings_total", "Posting count over time", "Postings")
-        line_page(
-            pdf,
-            args.job_type,
-            snapshots,
-            "salary_coverage_percentage",
-            "Salary coverage over time",
-            "Listings with salary (%)",
-            percent=True,
-        )
+        dashboard_page(pdf, args.job_type, snapshots)
         monthly_salary_page(pdf, args.job_type, snapshots)
     print(output_path)
 
